@@ -30,27 +30,38 @@ pageextension 50400 "Item Card RPA Ext" extends "Item Card"
                     Advice: Record "Repl. Policy Advice Log" temporary;
                     Advisor: Codeunit "Replenishment Policy Advisor";
                     Recommendation: Enum "Repl. Policy Recommendation";
-                    Body: Text;
-                    MsgApplyTxt: Label 'Replenishment policy advice for %1\\%2\\Recommended: %3 (current: %4).\\Apply this policy to the item?', Comment = '%1 Item No., %2 numbers+reason, %3 recommended policy, %4 current policy';
-                    MsgInfoTxt: Label 'Replenishment policy advice for %1\\%2\\Recommended: %3 (current: %4).', Comment = '%1 Item No., %2 numbers+reason, %3 recommended policy, %4 current policy';
+                    CurrentPolicy: Text;
+                    MsgApplyTxt: Label 'Replenishment policy advice for %1\\Recommended: %2 (current: %3)\\Safety Stock: %4\Reorder Point: %5\Order Qty (EOQ): %6\\%7\\%8\\Apply this policy to the item?', Comment = '%1 Item No., %2 recommended policy, %3 current policy, %4 safety stock, %5 reorder point, %6 order quantity, %7 demand pattern line, %8 reason';
+                    MsgInfoTxt: Label 'Replenishment policy advice for %1\\Recommended: %2 (current: %3)\\Safety Stock: %4\Reorder Point: %5\Order Qty (EOQ): %6\\%7\\%8', Comment = '%1 Item No., %2 recommended policy, %3 current policy, %4 safety stock, %5 reorder point, %6 order quantity, %7 demand pattern line, %8 reason';
+                    NoneTxt: Label 'none', Comment = 'Shown when the item has no reordering policy set';
                 begin
                     Setup.GetSetup();
 
                     // Preview only: does not write to the item or the log.
                     Recommendation := Advisor.AdvisePreview(Rec."No.", Advice);
-                    Body := BuildBody(Advice);
+
+                    CurrentPolicy := Advice."Current Policy";
+                    if CurrentPolicy = '' then
+                        CurrentPolicy := NoneTxt;
 
                     if Setup."Auto-Update Reordering Policy"
                        and (Recommendation in [Recommendation::"Fixed Reorder Qty.", Recommendation::"Maximum Qty.", Recommendation::"Lot-for-Lot"])
                        and (Format(Recommendation) <> Advice."Current Policy")
                     then begin
-                        if Confirm(MsgApplyTxt, true, Rec."No.", Body, Format(Recommendation), Advice."Current Policy") then begin
+                        if Confirm(MsgApplyTxt, true,
+                            Rec."No.", Format(Recommendation), CurrentPolicy,
+                            Format(Advice."Safety Stock", 0, 9), Format(Advice."Reorder Point", 0, 9), Format(Advice."Order Quantity (EOQ)", 0, 9),
+                            PatternLine(Advice), ReasonText(Advice))
+                        then begin
                             Advisor.AdviseForItem(Rec."No.", true, Advice);
                             Rec.Get(Rec."No.");
                             CurrPage.Update(false);
                         end;
                     end else
-                        Message(MsgInfoTxt, Rec."No.", Body, Format(Recommendation), Advice."Current Policy");
+                        Message(MsgInfoTxt,
+                            Rec."No.", Format(Recommendation), CurrentPolicy,
+                            Format(Advice."Safety Stock", 0, 9), Format(Advice."Reorder Point", 0, 9), Format(Advice."Order Quantity (EOQ)", 0, 9),
+                            PatternLine(Advice), ReasonText(Advice));
                 end;
             }
             action(ShowAdviceLog)
@@ -73,22 +84,30 @@ pageextension 50400 "Item Card RPA Ext" extends "Item Card"
         }
     }
 
-    local procedure BuildBody(var Advice: Record "Repl. Policy Advice Log"): Text
+    local procedure PatternLine(var Advice: Record "Repl. Policy Advice Log"): Text
     var
-        NumbersTxt: Label 'Safety Stock: %1   Reorder Point: %2   Order Qty (EOQ): %3', Comment = '%1 safety stock, %2 reorder point, %3 order quantity';
-        PatternTxt: Label 'Demand pattern: %1   (avg %2/day, %3 obs, ADI %4, CV2 %5)', Comment = '%1 pattern, %2 avg daily demand, %3 observations, %4 ADI, %5 CV squared';
+        PatternTxt: Label 'Demand pattern: %1 (avg %2/day, %3 obs, ADI %4, CV2 %5)', Comment = '%1 pattern, %2 avg daily demand, %3 observations, %4 ADI, %5 CV squared';
+        NoPatternTxt: Label 'Demand pattern: not classified', Comment = 'Shown when there is no demand history to classify';
     begin
-        exit(
-            StrSubstNo(NumbersTxt,
-                Format(Advice."Safety Stock", 0, 9),
-                Format(Advice."Reorder Point", 0, 9),
-                Format(Advice."Order Quantity (EOQ)", 0, 9)) + '\' +
-            StrSubstNo(PatternTxt,
-                Advice."Demand Pattern",
-                Format(Round(Advice."Avg Daily Demand", 0.01), 0, 9),
-                Format(Advice."Demand Observations"),
-                Format(Round(Advice."Avg Demand Interval (ADI)", 0.01), 0, 9),
-                Format(Round(Advice."Demand CV Squared", 0.01), 0, 9)) + '\\' +
-            Advice.Note);
+        if Advice."Demand Pattern" = '' then
+            exit(NoPatternTxt);
+        exit(StrSubstNo(PatternTxt,
+            Advice."Demand Pattern",
+            Format(Round(Advice."Avg Daily Demand", 0.01), 0, 9),
+            Format(Advice."Demand Observations"),
+            Format(Round(Advice."Avg Demand Interval (ADI)", 0.01), 0, 9),
+            Format(Round(Advice."Demand CV Squared", 0.01), 0, 9)));
+    end;
+
+    local procedure ReasonText(var Advice: Record "Repl. Policy Advice Log"): Text
+    var
+        TailPos: Integer;
+    begin
+        // The advisor appends a "[SS=…, ROP=…, EOQ=…]" tail to the Note for the log;
+        // the dialog already shows those numbers on their own lines, so strip it here.
+        TailPos := StrPos(Advice.Note, ' [SS');
+        if TailPos > 0 then
+            exit(CopyStr(Advice.Note, 1, TailPos - 1));
+        exit(Advice.Note);
     end;
 }
