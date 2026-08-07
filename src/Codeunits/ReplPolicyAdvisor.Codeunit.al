@@ -248,7 +248,7 @@ codeunit 50400 "Replenishment Policy Advisor"
         end;
 
         if Setup."Perishable Means Max Qty." and HasShelfLife(Item) then begin
-            Note := StrSubstNo('%1 demand with a shelf life set. Maximum Qty. refills up to a ceiling (Maximum Inventory) when stock crosses the reorder point, capping standing stock so nothing expires. Set both Reorder Point and Maximum Inventory; the order quantity varies up to the cap.', Pattern);
+            Note := StrSubstNo('%1 demand with a shelf life (Expiration Calculation) set. Maximum Qty. refills up to a ceiling (Maximum Inventory) when stock crosses the reorder point, capping standing stock so nothing expires. Set both Reorder Point and Maximum Inventory; the order quantity varies up to the cap.', Pattern);
             exit(Recommendation::"Maximum Qty.");
         end;
 
@@ -335,7 +335,9 @@ codeunit 50400 "Replenishment Policy Advisor"
 
     local procedure HasShelfLife(Item: Record Item): Boolean
     begin
-        exit(Format(Item."Shelf Life") <> '');
+        // The standard Item proxy for a shelf life is the Expiration Calculation
+        // date formula (Item Tracking FastTab): receipt date + formula = expiry.
+        exit(Format(Item."Expiration Calculation") <> '');
     end;
 
     local procedure IsApplicablePolicy(Recommendation: Enum "Repl. Policy Recommendation"): Boolean
