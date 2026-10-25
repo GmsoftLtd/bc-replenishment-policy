@@ -1,5 +1,7 @@
 # BC Replenishment Policy Advisor
 
+**Now part of the free Inventory Planning app for Business Central:** https://gmsoftdynamics.com/apps/free/inventory-planning/ | **All GMSOFT apps:** https://gmsoftdynamics.com/apps/compare/
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Business Central](https://img.shields.io/badge/BC-v27+-blue.svg)](https://learn.microsoft.com/en-us/dynamics365/business-central/)
 
